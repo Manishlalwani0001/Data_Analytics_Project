@@ -1,0 +1,43 @@
+# !pip install kaggle
+import kaggle
+
+# API call  to dowload dataset from kaggle
+!kaggle datasets download ankitbansal06/retail-orders -f orders.csv
+
+!pip install pandas
+
+import zipfile
+zip_ref = zipfile.ZipFile('retail-orders.zip')
+zip_ref.extractall()
+zip_ref.close()
+
+#df = pd.read_csv('orders.csv',encoding='latin-1', engine='python', on_bad_lines='skip
+import pandas as pd
+df =pd.read_csv('orders.csv',na_values=['Not Available','unknown'])
+
+# df.head(100)
+df['Ship Mode'].unique()
+df.columns=df.columns.str.lower()
+df.columns = df.columns.str.replace(' ','-')
+df.head()
+
+# drive new columns like Discount,Sale,Price and Profit...
+
+df['discount'] = df['list-price']* df['discount-percent']*0.01
+df['sale-price'] = df['list-price']-df['discount']
+df['profit'] = df['sale-price'] -df['cost-price']
+df.head(100)
+
+# drop the unnecessary column from Table...
+df.drop(columns=['list-price','cost-price','discount-percent'],inplace=True)
+df.head()
+
+# IN this we are making connection with sql server to perform operation using sql
+
+import sqlalchemy as sal
+engine = sal.create_engine('mssql://LAPTOP-8D3BSDBP/master?driver=ODBC+DRIVER+17+FOR+SQL+SERVER')
+conn= engine.connect()
+
+# Now load data in sql server using append or replace option...
+df.to_sql('df_orders',con=conn,index=False,if_exists='append')
+
