@@ -1,0 +1,108 @@
+# drop table if you have same table 
+drop table df_orders
+
+# Creating new table to reduce size because pandas create max size column.
+
+create table df_orders
+(
+	[order-id] int primary key,
+	[order-date] date,
+	[ship-mode] varchar(20),
+	segment varchar(20),
+	country varchar(20),
+	city varchar(20),
+	[state] varchar(20),
+	[postal-code] varchar(20),
+	region varchar(20),
+	category varchar(20),
+	[sub-category] varchar(20),
+	[product-id] varchar(50),
+	quantity int,
+	discount decimal(7,2),
+	[sale-price] decimal(7,2),
+	profit decimal(7,2)
+)
+select * from df_orders
+
+--1.  TOP 10 highest revenue generating products.
+
+select top 10 [sub-category],sum([sale-price]*quantity) as revenue
+from df_orders
+group by [sub-category]
+order by revenue desc
+
+
+---2.  find top 5 highest selling products in each region
+---    here selling means revenue by each product 
+
+select a.* from
+(
+select   region, [product-id],sum(quantity*[sale-price]) as product_revenue ,ROW_NUMBER() over(partition by region order by sum(quantity*[sale-price]) desc) as rn
+from df_orders
+group by region ,[product-id]
+)a
+where rn<6
+ 
+ 
+--3.--find month over month growth comparison for 2022 and 2023 
+-- I'm solving this based on sale-price
+-- here we have data only 2022 and 2023. but In real scenerio we need to handle many years of data so first cte is based on that scenerio.
+
+with month_year_seprated as
+(
+select *,month([order-date]) as [month],year([order-date]) as [year]
+from df_orders
+where [order-date] between '2022-1-1' and '2023-12-31'
+
+
+),
+-- this cte showing monthly sale from 2022 and 2023
+ year_month_sale as
+(
+select [year],[month],sum([sale-price]) as monthly_sale
+from month_year_seprated
+group by [year],[month]
+)
+ 
+ -- in last piece of code, self join where where I am arranging data of 2023 in front of 2022 sale_data ,
+  
+select A.[month],(B.monthly_sale -A.monthly_sale) as change_sale 
+from year_month_sale A,year_month_sale B
+where A.[month]=B.[month] and (B.[year]-A.[year])=1
+order by [month]
+ 
+
+---4.   for each category which month had highest sales.
+with category_revenue as
+(
+select  row_number() over( partition by category,year([order-date]) order by category,year([order-date]) ,  sum([sale-price]*quantity) desc) as rn,category, month([order-date]) as _month,year([order-date]) as _year, sum([sale-price]*quantity)as revenue 
+from df_orders
+ 
+group by category, month([order-date]),year([order-date])
+)
+ 
+ select * from category_revenue
+ where rn=1
+ 
+ --5. which sub-category had highest growth by profit in 2023 compare to  2022.
+ 
+ with cte as
+ (
+ select [sub-category],
+ case when year([order-date])=2023 then sum(profit*quantity) else 0 end as profit_2023,
+  case when year([order-date])=2022 then sum(profit*quantity) else 0 end as profit_2022
+	from
+ df_orders
+  group by [sub-category],year([order-date])
+ -- order by [sub-category]
+  )
+  select top 1 [sub-category],sum(profit_2023) as profit_2023, sum(profit_2022) as profit_2022,sum(profit_2023)-sum(profit_2022) as growth_profit
+  from
+  cte 
+  group by [sub-category]
+  order by growth_profit desc
+
+
+
+
+
